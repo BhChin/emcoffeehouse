@@ -1,0 +1,2757 @@
+/* ══ Em Coffee House — loud caramel ═══════════════════════════════════════
+   Buttermax-style restyle: a flat condensed-milk-caramel plate inside a thin
+   dark frame, one giant grotesque-plus-script wordmark, and the 3D cup
+   floating in front of the type. The previous cream Didone editorial design
+   is archived in legacy-editorial/.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Registered so the colourway switcher's palette retune INTERPOLATES. An
+   unregistered custom property is just a token to the engine and jumps
+   between values; @property gives it a type, which makes it animatable. */
+@property --plate {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #eff1e4;
+}
+@property --ink {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #05435a;
+}
+/* Radius of the page "wash" — the DOM half of the stir. The GL layer can only
+   ripple the drink (the giant type is real DOM and must stay crisp), so the
+   incoming plate colour is carried across the page by an animated radial
+   gradient painted straight onto .page. Registered so it interpolates. */
+@property --wash-r {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 0px;
+}
+/* Registered for the same reason: the header's compression has to INTERPOLATE,
+   and --nav-h is derived from it, so the jump bar's sticky offset animates in
+   step with the bar instead of snapping to the new height. */
+@property --nav-pad {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 30px;
+}
+
+:root {
+  /* ── brand tokens ────────────────────────────────────────────────────────
+     The four colours the site actually uses, as literals. Everything else in
+     this file resolves to one of them.
+
+     These are the STABLE base. --plate and --ink below are the LIVE page
+     palette: they start at these values but are retuned per drink by
+     applyPagePalette(), and being @property-registered they animate between
+     colourways. So the two sets are not interchangeable —
+
+       use --plate / --ink   for anything that must follow the active drink
+                             (page ground, footer, body copy);
+       use --cream / --teal-deep for anything that must stay put regardless
+                             (the header's scrolled bar, the quote ground),
+                             or the element would drift out from under the
+                             colourway it was designed against.
+
+     --cream was already declared but was #f3e8d8 and referenced nowhere — a
+     leftover from the pre-restyle palette. It is now the real page cream. */
+  --cream: #eff1e4;
+  --teal-deep: #05435a;
+  /* The matcha green, the site's only true sage. Muted rather than the vivid
+     #6fa53c the colourway chip uses, which is the same hue at full strength. */
+  --sage: #7a9b57;
+  --amber: #c68f45;
+
+  /* Page palette — retuned per drink by applyPagePalette() in main.js.
+     `house` matches these values, so the page is unchanged at rest. */
+  --plate: #eff1e4;
+  --ink: #05435a;
+  /* These two are NO LONGER retuned here. The colourway is written onto .hero
+     instead, so everything outside the hero resolves the static values below and
+     stays put when the drink changes. The live pair and its wash now live in the
+     .hero rule; only --nav-pad still transitions at the root. */
+  transition: --nav-pad 0.35s var(--out);
+  /* The one accent. Taken from the preloader's brand teal — the page opens on
+     Coconut Matcha now, and the previous amber was tuned for the old cream
+     plate, so it read as a clash against the green. Used by the ORDER NOW pill
+     and by the flyover's arrival pulse on the first card. */
+  --accent: var(--teal-deep);
+  /* Alias, not a second colour: anything still asking for "gold" resolves to
+     the one accent rather than quietly diverging from it. */
+  --gold: var(--accent);
+  /* The one warm note left on the page: the menu feature border and eyebrow.
+     Kept separate from --accent because that is teal now, and the feature has
+     to differ from the teal border every other card already carries. */
+  --feature: var(--amber);
+  --frame: #121110;
+  /* Warm brown-gray — a cool gray shadow on cream reads as dirt. */
+  --shadow: rgba(92, 72, 46, 0.35);
+
+  --grot: 'Archivo Black', 'Arial Black', sans-serif;
+  /* Bodoni Moda italic replaces Pacifico for the #BeInTheMoment treatment.
+     One display family instead of two, and the italic already ships in the
+     Bodoni variable font we load — so this removes a request rather than
+     swapping one. Letter-spaced, because a Didone italic set tight at display
+     size closes up. */
+  /* Playfair Display sits between Bodoni and the generic serif ON PURPOSE.
+     Bodoni Moda ships no  subset — verified against Google's own
+     CSS, which offers only latin, latin-ext, math and symbols, and whose
+     latin-ext covers U+1E00-1E9F and U+1EF2-1EFF. Vietnamese dot-below and
+     horn glyphs live at U+1EA0-1EF1, exactly the gap: 'Đà Lạt' renders D-à-L-t
+     in Bodoni with the ạ dropping to whatever the system serif is (Times, on
+     Windows) in the middle of a display line.
+     Playfair Display is a high-contrast Didone that DOES ship vietnamese, so
+     those glyphs land in a face that belongs next to Bodoni instead of against
+     it. The browser only fetches the vietnamese file when such a glyph is
+     actually used. Check any new Vietnamese string by width-probe, not by
+     document.fonts.check() — the latter reports the whole stack and passes even
+     when the first family has nothing. */
+  --script: 'Bodoni Moda', 'Playfair Display', Didot, serif;
+  /* Archivo 500/700 carries every Vietnamese drink name — see index.html. */
+  --ui: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+
+  --ease: cubic-bezier(0.65, 0, 0.15, 1);
+  /* GSAP's power2.out as a bezier — power2 is the cubic curve, so this is
+     easeOutCubic. Used by the header state change. */
+  --out: cubic-bezier(0.215, 0.61, 0.355, 1);
+
+  /* The nav is fixed, so anything that must clear it has to know its height.
+     9px top offset + vertical padding either side + the logo box (the asset is
+     250x125, so height is half the width).
+
+     The padding is its own token because the scrolled header compresses, and
+     --nav-h has to compress WITH it: the /menu jump bar pins at top: var(--nav-h)
+     and the sections pad by it, so a bar that shrank on its own would open a gap
+     under itself with page content showing through. Registered as a <length>
+     (see @property above) so it interpolates rather than jumping — that single
+     animated token is what makes the bar and the jump bar move together. */
+  --nav-pad: clamp(18px, 3vh, 30px);
+  /* Published by credibility.js from the announcement bar's measured height, and
+     rewritten to 0px the moment it is dismissed. It has to appear in BOTH the
+     nav's top offset and --nav-h: the bar pushes the header down, and the /menu
+     jump bar pins at var(--nav-h), so a --nav-h that ignored the banner would
+     stack the subnav underneath the header instead of below it. One number, one
+     place, both consumers. */
+  --banner-h: 0px;
+  --nav-h: calc(9px + var(--banner-h) + 2 * var(--nav-pad) + clamp(48px, 4.25vw, 66px));
+  --gutter: clamp(1.5rem, 4.5vw, 4.5rem);
+  --rule: clamp(4rem, 12vh, 8rem);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  /* body paints the dark --frame that surrounds the 9px page margin, but it
+     only covers its own box; anywhere the canvas is exposed beyond it — an
+     overscroll, a tall injected section mid-relayout — the root shows through
+     as black. Cream here means the worst case is an unstyled cream band rather
+     than a full-viewport black frame. */
+  background: var(--cream);
+  scroll-behavior: smooth;
+  scroll-padding-top: 5rem;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  /* flow-root, so .page's 9px margin is CONTAINED rather than collapsing through.
+     Without a block formatting context here that margin escapes the body and
+     moves the body itself down instead — body's box started at y=9, so the top
+     and bottom 9px strips showed html's cream while only the left and right
+     showed the dark --frame. Three dark sides and two cream ones is what reads
+     as "the borders are not aligned".
+     flow-root rather than overflow:hidden: it makes a BFC and nothing else, so
+     it cannot trap position:sticky, which the deck cards and the hero stage
+     both depend on. */
+  display: flow-root;
+  background: var(--frame);
+  color: var(--ink);
+  font-family: var(--ui);
+  font-weight: 500;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: clip;
+}
+
+h1,
+h2,
+p,
+blockquote,
+ul {
+  margin: 0;
+  padding: 0;
+}
+
+ul {
+  list-style: none;
+}
+
+img,
+canvas,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+.skip-link {
+  position: fixed;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 100;
+  padding: 0.7rem 1.2rem;
+  background: var(--ink);
+  color: var(--plate);
+  font-size: 0.85rem;
+  font-weight: 700;
+  border-radius: 999px;
+  transform: translateY(-160%);
+  transition: transform 0.3s var(--ease);
+}
+.skip-link:focus-visible {
+  transform: none;
+}
+
+/* Lost during an earlier restyle, which left the wordmark's accessible text
+   rendering visibly in the corner. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── the caramel plate ──────────────────────────────────────────────────── */
+/* Used to snap --wash-r back to 0 after a transition without animating it. */
+.wash-reset,
+.wash-reset * {
+  transition: none !important;
+}
+
+.page {
+  margin: 9px;
+  /* Static. This used to carry the live --plate and the wash gradient, which is
+     how a hero swatch retinted the quote, the ritual and the moments grid three
+     screens away. */
+  background-color: var(--cream);
+  border-radius: 16px;
+  overflow: clip;
+}
+
+/* ── nav (absolute, like the reference — it belongs to the hero) ────────── */
+/* FIXED, permanently — not toggled. This was previously switched to fixed only
+   while the hero was pinned, which meant that at pin release it reverted to
+   position: absolute inside .page. .page is the full document height, so the
+   nav did not fade at the end of the sequence, it teleported to the top of the
+   document. It is a sibling of .hero and .page has no transform, so nothing
+   traps it: fixed here resolves against the viewport at every scroll position.
+   Inset 9px to sit on .page's own margin. */
+.nav {
+  position: fixed;
+  top: calc(9px + var(--banner-h));
+  left: 9px;
+  right: 9px;
+  /* Above the pin-spacer, the bean canvas and the drink, at every phase. */
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  /* Driven by --nav-pad so the bar's height and every offset written against
+     --nav-h compress together — see the token. */
+  padding: var(--nav-pad) var(--gutter);
+  /* backdrop-filter is listed even though the hero state has none: without it
+     the blur snaps on instead of ramping with the background. */
+  transition:
+    background-color 0.35s var(--out),
+    backdrop-filter 0.35s var(--out);
+}
+
+/* ── header states ─────────────────────────────────────────────────────────
+   Hero state is the bare rule above: transparent, no rule, full height.
+   Scrolled state is .is-scrolled, toggled by a ScrollTrigger on the hero's
+   bottom edge (see motion.js) rather than a scroll listener — the trigger
+   already knows where the hero ends, and a listener would re-measure per tick.
+
+   --cream and --teal-deep, not --plate/--ink: the bar must not drift when the
+   colourway switcher retunes the live palette mid-scroll. */
+/* ~15% off the bar's height, spent entirely on the padding: at 900px tall that
+   is 27px -> 18.4px each side, taking a 115px bar to 98px. Set on :root rather
+   than on .nav so --nav-h recomputes from it. */
+:root:has(.nav.is-scrolled) {
+  --nav-pad: clamp(12px, 2.05vh, 20px);
+}
+
+.nav.is-scrolled {
+  background-color: color-mix(in srgb, var(--cream) 92%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* The hairline. A pseudo-element rather than border-bottom, because a border
+   adds 1px to the laid-out height and --nav-h is the contract the jump bar's
+   `top` and the section paddings are all written against. */
+.nav::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 1px;
+  background: color-mix(in srgb, var(--teal-deep) 12%, transparent);
+  opacity: 0;
+  transition: opacity 0.35s var(--out);
+}
+.nav.is-scrolled::after {
+  opacity: 1;
+}
+
+/* The 9px strip ABOVE the bar. The nav sits at top: 9px to line up with .page's
+   margin, and once the page is scrolled that sliver is inside .page — content
+   paints straight through it unless the background extends up. */
+.nav::before {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 100%;
+  left: 0;
+  height: 9px;
+  background-color: color-mix(in srgb, var(--cream) 92%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  opacity: 0;
+  transition: opacity 0.35s var(--out);
+}
+.nav.is-scrolled::before {
+  opacity: 1;
+}
+
+/* Reduced motion: the states still switch — the whole point is that content
+   stops colliding with the bar — they just switch instantly. */
+@media (prefers-reduced-motion: reduce) {
+  :root,
+  .nav,
+  .nav::before,
+  .nav::after {
+    transition-duration: 0s !important;
+  }
+}
+
+.nav__logo {
+  color: var(--ink);
+}
+/* currentColor on an inlined SVG — see src/logo.js for why this is not an img. */
+.logo-mark {
+  display: block;
+  color: var(--ink);
+}
+.logo-mark svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.nav__logo .logo-mark {
+  width: clamp(96px, 8.5vw, 132px);
+  aspect-ratio: 2 / 1;
+}
+
+/* The clover doubles as the scroll-progress indicator: motion.js scrubs it
+   0 -> 360deg across the document. It is a child of the fixed .nav, so it is
+   structurally incapable of drifting over page content — and it is sized well
+   inside the bar (48px max against a bar that never compresses below ~98px), so
+   it cannot overflow it either. No overflow:clip on .nav, which would also clip
+   the ::before strip that sits above the bar by design.
+
+   GSAP writes rotate as part of the transform, so the centring translate has to
+   travel with it — hence `left/translate` here rather than a margin trick that
+   the tween would overwrite. */
+.nav__mark {
+  position: absolute;
+  left: 50%;
+  translate: -50% 0;
+  width: clamp(34px, 2.8vw, 48px);
+  /* Teal in hero state, amber once the bar is solid — the same pairing the
+     header itself changes on, so the mark reads as part of the bar. */
+  color: var(--teal-deep);
+  transition: color 0.35s var(--out);
+}
+.nav.is-scrolled .nav__mark {
+  color: var(--amber);
+}
+
+.pills {
+  display: flex;
+  align-items: center;
+  gap: clamp(8px, 0.8vw, 12px);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 9px clamp(14px, 1.5vw, 24px);
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  font-size: clamp(11px, 0.78vw, 14px);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition:
+    background-color 0.35s var(--ease),
+    color 0.35s var(--ease);
+}
+.pill:hover,
+.pill:focus-visible {
+  background: var(--ink);
+  color: var(--plate);
+}
+
+.pill--fill {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #fffdf6;
+}
+.pill--fill:hover,
+.pill--fill:focus-visible {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--plate);
+}
+
+#cup {
+  /* Thrown toward the letters so the glass reads as physically in front of
+     them. drop-shadow (not box-shadow) follows the rendered alpha, so it
+     traces the silhouette rather than the canvas rectangle. */
+  filter: drop-shadow(-4px 4px 24px rgba(29, 74, 66, 0.08));
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  /* Spans the hero, so it would otherwise swallow every click underneath it. */
+  pointer-events: none;
+}
+
+.cup-shadow {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 4%;
+  z-index: 0;
+  display: flex;
+  justify-content: center;
+  opacity: 0;
+}
+.cup-shadow__i {
+  width: 56%;
+  aspect-ratio: 3.2 / 1;
+  background: radial-gradient(
+    ellipse at center,
+    var(--shadow) 0%,
+    rgba(92, 72, 46, 0.16) 45%,
+    rgba(92, 72, 46, 0) 72%
+  );
+  filter: blur(12px);
+  will-change: transform, opacity;
+}
+
+/* row-reverse on the parent puts the label to the LEFT of the active dot,
+   so the row grows inward from the right edge instead of overflowing it. */
+.chip {
+  display: inline-flex;
+  flex-direction: row-reverse;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 3px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--ink);
+  font: inherit;
+}
+
+.chip__dot {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  /* Colour comes inline from COLORWAYS[].lid. */
+}
+.chip[aria-checked='true'] .chip__dot {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.chip__label {
+  display: none;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.chip[aria-checked='true'] .chip__label {
+  display: inline;
+}
+
+.arrow {
+  position: absolute;
+  left: 50%;
+  bottom: clamp(14px, 2.6vh, 26px);
+  z-index: 3;
+  width: clamp(16px, 1.3vw, 24px);
+  transform: translateX(-50%);
+  color: var(--ink);
+  animation: dip 2.4s var(--ease) infinite;
+}
+@keyframes dip {
+  0%,
+  100% {
+    transform: translate(-50%, 0);
+  }
+  55% {
+    transform: translate(-50%, 9px);
+  }
+}
+
+/* ── sections ───────────────────────────────────────────────────────────── */
+.section {
+  padding: var(--rule) var(--gutter);
+}
+
+.section__head {
+  margin-bottom: clamp(2rem, 5vh, 3.5rem);
+}
+
+.eyebrow {
+  margin-bottom: 0.8rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  opacity: 0.65;
+}
+
+/* The hero's Didone, matching the wordmark's family, weight and tracking — the
+   heavy geometric sans that used to sit here belonged to the old caramel
+   restyle and no longer matches anything else on the page. Sentence case, not
+   uppercase. Safe in Bodoni because these headings are latin-only; the drink
+   NAMES are not, which is why those use the Didone rather than the sans. */
+.section__title {
+  font-family: 'Bodoni Moda', Didot, 'Times New Roman', serif;
+  font-size: clamp(56px, 7vw, 110px);
+  font-weight: 900;
+  line-height: 0.92;
+  letter-spacing: -0.02em;
+  font-optical-sizing: none;
+  font-variation-settings: 'opsz' 96;
+  color: var(--ink);
+}
+
+/* ── drink carousel ─────────────────────────────────────────────────────── */
+/* The whole section is ONE viewport: headline band, stage, label row. Nothing
+   here may push the page taller, or the flyover lands on a section you then
+   have to hunt through. The three bands are a grid, so the middle takes
+   whatever is left rather than the total being a sum of guesses. */
+.section--menu {
+  /* svh, not vh: on mobile browsers with a retracting toolbar vh is the TALL
+     viewport, so the section would run under the chrome. */
+  height: 100svh;
+  padding: calc(var(--nav-h) + 24px) var(--gutter) 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  align-items: stretch;
+  transition: background-color 0.5s var(--ease);
+
+  /* An ordinary section. There is no transition into it: the story stage simply
+     ends and this follows in normal flow. Everything that used to make it a
+     moving part — the rounded leading edge, the upward shadow, the negative
+     margin, the sticky pin, the z-index — is gone. */
+  background-color: color-mix(in srgb, var(--menu-bg, var(--plate)) 40%, var(--plate));
+}
+/* CENTRED in its band, not bottom-aligned. At 1280x720 the 18svh band is 130px
+   and the eyebrow-plus-title stack is ~115px, so end-alignment pushed the
+   eyebrow 21px above the fold. Centring leaves equal air and survives short
+   viewports. */
+.section--menu .section__head {
+  align-self: center;
+}
+
+/* The labels live INSIDE .carousel, so the band split has to happen here — the
+   section grid only ever sees two children (head, carousel). Rows, not flex:
+   the stage takes what is left and the label row keeps a fixed 6svh at the
+   bottom edge. */
+.carousel {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) 6svh;
+  outline: none;
+}
+.carousel:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 8px;
+  border-radius: 4px;
+}
+
+/* The stage row is the caption's containing block: anchoring the caption to
+   .carousel instead centred it against stage+labels together, pushing it below
+   the drink. */
+.carousel__stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 0;
+}
+
+.carousel__viewport {
+  overflow: hidden;
+  width: 100%;
+}
+
+.carousel__track {
+  display: flex;
+  align-items: center;
+  touch-action: pan-y pinch-zoom;
+}
+
+.carousel__slide {
+  position: relative;
+  flex: 0 0 var(--slide-pct, 30%);
+  min-width: 0;
+  display: flex;
+  justify-content: center;
+  cursor: pointer;
+}
+.carousel__slide.is-active {
+  cursor: default;
+  /* The stage drink layers OVER its neighbours — they are behind it, not
+     cropped by it. */
+  z-index: 2;
+}
+
+/* Peek state lives on the PHOTO, not on the slide. Embla's loop engine writes
+   an inline transform to every slide element to reposition it for wrap-around,
+   which silently overwrote a `transform: scale()` set here — the slides stayed
+   at scale 1 and only the opacity difference read. Scaling the child leaves
+   Embla's own transform untouched. */
+.carousel__photo {
+  height: 44svh;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+  filter: drop-shadow(-6px 10px 26px rgba(0, 0, 0, 0.16));
+  /* Peek by default; the active slide overrides. Hidden entirely unless this
+     slide is the active one or one of its two immediate neighbours — with five
+     slides at 30% width a third would otherwise creep into frame, and the brief
+     wants exactly one preview per side. */
+  opacity: 0;
+  transform: scale(0.55);
+  transform-origin: center center;
+}
+.carousel.is-ready .carousel__photo {
+  transition:
+    opacity 0.5s var(--ease),
+    transform 0.5s var(--ease);
+}
+.carousel__slide.is-peek .carousel__photo {
+  opacity: 0.35;
+}
+.carousel__slide.is-peek:hover .carousel__photo {
+  opacity: 0.5;
+}
+/* Shifted left of centre so the caption has the right half to itself. Embla
+   keeps the active slide screen-centred; this offsets the artwork inside it,
+   which leaves the peeks symmetrically placed at the frame edges. */
+.carousel__slide.is-active .carousel__photo {
+  opacity: 1;
+  transform: scale(1) translateX(var(--stage-shift, -46%));
+}
+
+/* The settle-bob that used to live here is gone with the drop it belonged to.
+   It fired as the falling bean crossed the carousel stage; the bean now lands in
+   the headline instead and never passes the drinks, so the trigger no longer
+   exists and the rule was unreachable. */
+
+/* ── caption ────────────────────────────────────────────────────────────── */
+/* Absolutely placed on the right half and vertically centred — beside the
+   drink, not stacked under it. Above the slides in z so the right-hand peek
+   passes behind it. */
+.carousel__caption {
+  position: absolute;
+  z-index: 3;
+  right: 4vw;
+  top: 50%;
+  transform: translateY(-50%);
+  width: min(38vw, 30rem);
+  text-align: left;
+  pointer-events: none;
+}
+.carousel__caption > * {
+  pointer-events: auto;
+}
+
+.carousel__name {
+  /* NOT the Didone, despite every other display string on the page being one.
+     Bodoni Moda ships latin, latin-ext, math and symbols only — it has no
+     vietnamese subset, and the drink names live in U+1EA0-1EF9. Measured: a,
+     e-circumflex and D-bar come from Bodoni, but u-horn-tilde, a-dot, i-hook
+     and o-acute-circumflex all fall back, so a name rendered in it is two fonts
+     mid-word. Playfair used to cover this; with Playfair removed, Archivo is the
+     loaded family that carries the block. */
+  font-family: var(--ui);
+  font-weight: 700;
+  font-weight: 500;
+  font-size: clamp(26px, 3vw, 40px);
+  line-height: 1.08;
+  color: var(--ink);
+}
+
+.carousel__note {
+  margin-top: 0.7rem;
+  max-width: 40ch;
+  font-family: var(--ui);
+  font-size: clamp(0.8rem, 0.92vw, 0.92rem);
+  font-weight: 500;
+  line-height: 1.6;
+  opacity: 0.8;
+}
+
+.carousel__price {
+  margin-top: 0.9rem;
+  font-family: var(--script);
+  font-size: 1.3rem;
+  color: var(--menu-accent, var(--feature));
+  transition: color 0.5s var(--ease);
+}
+
+.carousel__order {
+  display: inline-block;
+  margin-top: 0.35rem;
+  font-family: var(--ui);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink);
+  border-bottom: 1px solid currentColor;
+  padding-bottom: 2px;
+}
+.carousel__order:hover {
+  color: var(--menu-accent, var(--feature));
+}
+
+/* ── name labels ────────────────────────────────────────────────────────── */
+/* Real buttons, not dots — every drink stays discoverable, readable and
+   reachable by keyboard without stepping through the carousel. */
+.carousel__labels {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: clamp(0.8rem, 2.2vw, 2.2rem);
+  height: 100%;
+}
+
+.carousel__label {
+  position: relative;
+  padding: 0.35rem 0 0.5rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: var(--ui);
+  font-size: clamp(10px, 0.8vw, 12px);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: color-mix(in srgb, var(--ink) 55%, transparent);
+  transition: color 0.35s var(--ease);
+}
+.carousel__label::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--menu-accent, var(--feature));
+  transform: scaleX(0);
+  transform-origin: center;
+  transition:
+    transform 0.4s var(--ease),
+    background-color 0.5s var(--ease);
+}
+.carousel__label:hover,
+.carousel__label.is-active {
+  color: var(--ink);
+}
+.carousel__label.is-active::after {
+  transform: scaleX(1);
+}
+
+/* The coda lived under the cards; it has no room in a single-viewport section. */
+.menu__coda {
+  display: none;
+}
+
+/* ── mobile ─────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .section--menu {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  /* Portrait has no room for a side-by-side stage: the caption goes back under
+     the drink and the photo shrinks to make space for it. */
+  .carousel__photo { height: 30svh; }
+  .carousel__slide.is-active .carousel__photo {
+    transform: scale(1) translateX(0);
+  }
+  .carousel__caption {
+    position: static;
+    transform: none;
+    width: auto;
+    text-align: center;
+    margin-top: 1.5svh;
+  }
+  .carousel__note { margin-inline: auto; }
+
+  .carousel__labels {
+    justify-content: flex-start;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    padding-inline: 4vw;
+    scrollbar-width: none;
+  }
+  .carousel__labels::-webkit-scrollbar { display: none; }
+  .carousel__labels li { scroll-snap-align: center; }
+}
+
+/* ── reduced motion ─────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .carousel.is-ready .carousel__photo,
+  .carousel__label::after,
+  .carousel__price,
+  .section--menu {
+    transition: none;
+  }
+}
+
+/* ── about ──────────────────────────────────────────────────────────────── */
+
+.locations {
+  /* Static tokens throughout this section: --ink/--plate are the hero's live
+     colourway now, and a locations list that shifted hue with the drink switcher
+     three screens up was exactly the drift the standing rule forbids. */
+  border-top: 2px solid var(--teal-deep);
+  list-style: none;
+}
+
+.loc {
+  border-bottom: 2px solid var(--teal-deep);
+}
+
+/* Small-caps metro divider. Not a heading — it labels a group of rows inside a
+   list, and role="presentation" keeps it out of the a11y tree as a phantom item. */
+.loc-metro {
+  padding: clamp(1.6rem, 3.4vh, 2.4rem) 0 0.55rem;
+  font-family: var(--ui);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--teal-deep) 55%, transparent);
+}
+.loc-metro:first-child { padding-top: 0.4rem; }
+
+/* The row. A button, so it needs the browser's own button styling stripped
+   before it can look like the editorial row it replaces. */
+.loc__h { margin: 0; font: inherit; font-weight: inherit; }
+.loc__row {
+  appearance: none;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  width: calc(100% + var(--gutter) * 2);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr) auto;
+  align-items: baseline;
+  gap: 1.5rem;
+  padding: clamp(1.3rem, 3.2vh, 2.2rem) var(--gutter);
+  margin-inline: calc(var(--gutter) * -1);
+  transition:
+    background-color 0.4s var(--ease),
+    color 0.4s var(--ease);
+}
+.loc__row:hover,
+.loc__row:focus-visible {
+  background: var(--teal-deep);
+  color: var(--cream);
+}
+/* Amber ring, per the section's focus treatment. Offset inward so it is not
+   clipped by the row's negative margin. */
+.loc__row:focus-visible {
+  outline: 3px solid var(--amber);
+  outline-offset: -3px;
+}
+
+.loc__city {
+  font-family: var(--grot);
+  font-size: clamp(1.5rem, 3.2vw, 2.9rem);
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+}
+
+.loc__address {
+  font-size: clamp(0.8rem, 0.95vw, 0.95rem);
+  font-weight: 500;
+  line-height: 1.5;
+  opacity: 0.82;
+}
+
+.loc__arrow {
+  font-size: 1.2rem;
+  font-weight: 700;
+  opacity: 0.5;
+  transition:
+    transform 0.4s var(--ease),
+    opacity 0.4s var(--ease);
+}
+/* Rotates to point down when the row is open — the arrow now means "expand",
+   not "leave the page", so it has to say which way. */
+.loc.is-open .loc__arrow { transform: rotate(90deg); opacity: 1; }
+
+/* ── the expanded panel ──────────────────────────────────────────────────── */
+/* height is animated by GSAP, so overflow must be clipped here or the contents
+   spill out of a collapsing box. */
+.locpanel {
+  overflow: hidden;
+}
+.locpanel__in {
+  display: grid;
+  grid-template-columns: 40% minmax(0, 1fr);
+  gap: clamp(1.2rem, 3vw, 2.6rem);
+  align-items: start;
+  padding: 0 0 clamp(1.6rem, 3.6vh, 2.6rem);
+}
+.locpanel__media img,
+.locpanel__media .ph {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.locpanel__hours {
+  margin: 0 0 clamp(1rem, 2.4vh, 1.6rem);
+}
+.locpanel__hrow {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.42rem 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--teal-deep) 14%, transparent);
+  font-size: clamp(0.82rem, 1vw, 0.95rem);
+}
+.locpanel__hrow dt {
+  font-family: var(--ui);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.78em;
+  align-self: center;
+  color: color-mix(in srgb, var(--teal-deep) 70%, transparent);
+}
+.locpanel__hrow dd { margin: 0; }
+
+.locpanel__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem 1.4rem;
+  align-items: center;
+}
+.locpanel__dir,
+.locpanel__order {
+  font-family: var(--ui);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.locpanel__dir {
+  color: var(--teal-deep);
+  border-bottom: 2px solid var(--amber);
+  padding-bottom: 2px;
+}
+.locpanel__dir:focus-visible {
+  outline: 3px solid var(--amber);
+  outline-offset: 3px;
+}
+/* The ordering slot before its link exists. Muted and struck through with a
+   dashed rule so it reads as a placeholder rather than a broken control. */
+.locpanel__order.is-disabled {
+  color: color-mix(in srgb, var(--teal-deep) 42%, transparent);
+  border-bottom: 2px dashed color-mix(in srgb, var(--teal-deep) 25%, transparent);
+  padding-bottom: 2px;
+  cursor: not-allowed;
+}
+.locpanel__order:not(.is-disabled) {
+  color: var(--cream);
+  background: var(--teal-deep);
+  padding: 0.55rem 1rem;
+}
+
+@media (max-width: 768px) {
+  .loc__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 0.35rem;
+  }
+  /* The address drops under the name rather than being squeezed beside it. */
+  .loc__address { grid-column: 1 / -1; }
+  .locpanel__in { grid-template-columns: minmax(0, 1fr); }
+}
+
+.loc__row:hover .loc__arrow,
+.loc__row:focus-visible .loc__arrow { opacity: 1; }
+.loc:not(.is-open) .loc__row:hover .loc__arrow { transform: translateX(6px); }
+
+/* ── footer ─────────────────────────────────────────────────────────────── */
+.footer {
+  background: var(--ink);
+  color: var(--plate);
+  padding: clamp(3rem, 8vh, 5rem) var(--gutter) clamp(2rem, 4vh, 3rem);
+  border-radius: 0 0 16px 16px;
+}
+
+/* The brand mark, cream on the teal ground. Replaces a script "em" glyph
+   that was never the logo. */
+.footer__logo {
+  display: inline-block;
+  color: var(--plate);
+}
+.footer__logo .logo-mark {
+  width: 120px;
+  aspect-ratio: 2 / 1;
+}
+
+.footer__list {
+  display: flex;
+  flex-direction: column;
+}
+
+.footer__cols {
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(2rem, 8vw, 7rem);
+  margin-top: clamp(2rem, 5vh, 3.5rem);
+  padding-top: clamp(2rem, 4vh, 3rem);
+  border-top: 2px solid rgba(248, 237, 218, 0.28);
+}
+
+.footer__label {
+  margin-bottom: 1rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  opacity: 0.65;
+}
+
+.footer__link,
+.footer__line {
+  display: block;
+  font-size: clamp(0.9rem, 1.1vw, 1.02rem);
+  font-weight: 500;
+  line-height: 1.9;
+}
+.footer__link {
+  width: fit-content;
+  transition: opacity 0.35s var(--ease);
+}
+.footer__link:hover,
+.footer__link:focus-visible {
+  opacity: 0.6;
+}
+
+.footer__fine {
+  margin-top: clamp(2rem, 5vh, 3.5rem);
+  font-size: 0.74rem;
+  font-weight: 500;
+  opacity: 0.55;
+}
+
+
+/* ── hero: one tight phrase, drink through it ───────────────────────────
+   "Em coffee house" is ONE continuous phrase. It sits at its own natural
+   width from a 5vw left margin and stops wherever it stops — the cream to
+   the right of "house" is meant to stay empty. Nothing here distributes the
+   words across the viewport: no grid columns, no flex-grow, no
+   justify-content, no per-word absolute positioning. The only extra air in
+   the whole line is `.gap`, a 0.22em inline-block before "house".
+
+   Layering: plate < wordmark(1) < drink(2) < supporting cast(3) < nav(5).
+   ────────────────────────────────────────────────────────────────────────── */
+/* The story SECTION. Its height is the story's scroll length, not a screenful:
+   .stage sticks inside it, so this is what the reader scrolls through while the
+   stage holds still. The old version was one screen tall and borrowed its scroll
+   distance from a ScrollTrigger pin plus a .hero-runway spacer; sticky needs
+   neither, and the browser does the holding.
+
+   No `overflow` here. A clip/hidden ancestor would become the sticky element's
+   scrollport and it would stop sticking to the viewport. */
+.hero {
+  position: relative;
+  /* THE LIVE COLOURWAY IS SCOPED HERE. --plate/--ink are @property-registered
+     with inherits:true, so writing them on this element retunes the hero and
+     everything inside it while the rest of the document keeps the static :root
+     values. The wash travels with them for the same reason — it is the hero's
+     ground changing colour, not the page's. */
+  --plate: #eff1e4;
+  --ink: #05435a;
+  --wash-color: transparent;
+  --wash-x: 50%;
+  --wash-y: 50%;
+  --wash-r: 0px;
+  transition:
+    --plate 0.5s cubic-bezier(0.65, 0, 0.15, 1),
+    --ink 0.5s cubic-bezier(0.65, 0, 0.15, 1),
+    /* Matches the shader's 0.9s ease-out so both wavefronts travel together. */
+    --wash-r 0.9s cubic-bezier(0.215, 0.61, 0.355, 1);
+  background-color: var(--plate);
+  /* The 70px soft band is what keeps the wavefront liquid rather than a
+     hard-edged circle sweeping the hero. */
+  background-image: radial-gradient(
+    circle at var(--wash-x) var(--wash-y),
+    var(--wash-color) calc(var(--wash-r) - 70px),
+    transparent var(--wash-r)
+  );
+  /* Story travel + one stage height. A sticky element releases once its
+     containing block's bottom passes, so the extra stage height is what keeps
+     the stage stuck for the whole scrubbed range: sticky travel is exactly
+     (height - stage height), which is the story travel. */
+  /* 587svh of travel, and the figure is NOT free: it must equal TOTAL_SVH in
+     hero-bean.js, which is STORY_LEAD_SVH 17 + STORY_SVH 320 + REVEAL_SVH 250.
+     The +100svh is one stage height — sticky travel is (height - stage height),
+     so that term is what makes the sticky range equal the scrub. The story's 320
+     is pinned so the bean's per-pixel pacing never moves. */
+  height: calc(587svh + 100svh - 18px);
+}
+
+/* ── wordmark ───────────────────────────────────────────────────────────── */
+.wm {
+  position: relative;
+  z-index: 1;
+  /* A single baseline-aligned row. `width: max-content` is what keeps the
+     phrase at its NATURAL width — a block-level flex container would stretch
+     to the hero and invite the words to spread. */
+  display: flex;
+  align-items: baseline;
+  width: max-content;
+  /* Flex discards the whitespace between items, so the word space between
+     "Em" and "coffee" has to be restated. This is a word space, not a valley. */
+  gap: 0.16em;
+  white-space: nowrap;
+  color: var(--ink);
+  font-family: 'Bodoni Moda', Didot, 'Times New Roman', serif;
+  font-size: clamp(84px, 19.5vw, 290px);
+  line-height: 0.92;
+  /* opsz is what gives a Didone its hairlines. At low optical sizes the face
+     thickens them for small-text legibility and the contrast collapses. */
+  font-optical-sizing: none;
+  font-variation-settings: 'opsz' 96;
+}
+
+.em {
+  font-style: normal;
+  font-weight: 900;
+  font-size: 1em;
+  letter-spacing: -0.02em;
+}
+
+.script {
+  font-style: italic;
+  font-weight: 400;
+  font-size: 0.45em;
+  letter-spacing: -0.01em;
+}
+
+/* The ONLY extra space in the line — a breath before "house", on top of the
+   normal word space already in the markup. Tiny by design: the drink's
+   garnish rises through it, the words do not part for the drink. */
+.gap {
+  display: inline-block;
+  width: 0.22em;
+  font-style: normal;
+}
+
+/* ── drink ──────────────────────────────────────────────────────────────── */
+/* Centred on the viewport and bottom-anchored, so it climbs through the
+   phrase while its base stays clear of the scroll cue. */
+.cup-stage {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  transform: translateX(-50%);
+  /* The scroll arrow is bottom-centre too, so the base has to clear it by more
+     than the 8px bob amplitude — which it now does comfortably. */
+  bottom: 4vh;
+  height: 66vh;
+  aspect-ratio: 5 / 9;
+  /* The drink still stirs on drag — only the STIR badge cursor is gone. `grab`
+     keeps the affordance without painting a label over the artwork. */
+  cursor: grab;
+  touch-action: pan-y;
+}
+.cup-stage:active {
+  cursor: grabbing;
+}
+
+/* ── supporting cast, back in their corners ─────────────────────────────── */
+.tagline {
+  position: relative;
+  z-index: 1;
+  margin-top: clamp(16px, 2.6vh, 30px);
+  font-size: clamp(12px, 1vw, 17px);
+  font-weight: 700;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+  max-width: 40%;
+}
+
+.hero__stamp {
+  position: absolute;
+  z-index: 3;
+  left: 4vw;
+  bottom: clamp(18px, 3vh, 30px);
+  /* Same treatment as the quote tag, so #BeInTheMoment reads as one mark
+     sitewide: Bodoni italic, opened up slightly. */
+  font-family: var(--script);
+  font-style: italic;
+  letter-spacing: 0.04em;
+  font-size: clamp(15px, 1.3vw, 24px);
+  color: var(--ink);
+}
+
+.colorways {
+  position: absolute;
+  z-index: 4;
+  right: 4vw;
+  bottom: clamp(18px, 3vh, 30px);
+  display: flex;
+  align-items: center;
+  flex-direction: row-reverse;
+  gap: 10px;
+}
+
+/* ── mobile: no overlap at all ──────────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* These are the STAGE's rules now, not .hero's. .hero is the story's scroll
+     length here (220svh) and must keep that height, or the sticky stage has no
+     travel to stick through — `height: auto` on .hero silently collapsed the
+     whole mechanic to a normal scrolling section.
+
+     Height is fixed rather than min-height + auto: a sticky box taller than the
+     viewport pins its top and leaves the overflow permanently below the fold,
+     which would put the drink somewhere the reader can never reach. The vertical
+     padding is tightened to match, so the stacked layout still fits one screen. */
+  .stage {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: calc(100svh - 18px);
+    padding: clamp(4rem, 11vh, 6rem) 5vw clamp(2.5rem, 6vh, 4rem);
+  }
+  .wm {
+    align-self: flex-start;
+    /* Stacked on small screens — the phrase cannot fit one line at this size. */
+    display: block;
+    width: auto;
+    font-size: clamp(64px, 21vw, 150px);
+  }
+  .script {
+    display: block;
+    font-size: 0.5em;
+    margin-left: 0.58em;
+    margin-top: -0.12em;
+  }
+  .tagline {
+    align-self: flex-start;
+    max-width: 100%;
+  }
+  /* Back in flow, below the type — no overlap on small screens. */
+  .cup-stage {
+    position: relative;
+    left: auto;
+    transform: none;
+    bottom: auto;
+    height: 50vh;
+    margin-top: clamp(20px, 4vh, 40px);
+  }
+  .colorways {
+    position: relative;
+    right: auto;
+    bottom: auto;
+    flex-direction: row;
+    margin-top: clamp(16px, 3vh, 28px);
+  }
+  .hero__stamp {
+    position: relative;
+    left: auto;
+    bottom: auto;
+    align-self: flex-start;
+    margin-top: clamp(16px, 3vh, 28px);
+  }
+  .arrow {
+    display: none;
+  }
+}
+
+/* ══ responsive ═══════════════════════════════════════════════════════════ */
+@media (max-width: 1080px) {
+  .cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 820px) {
+  .nav__mark {
+    display: none;
+  }
+  .pill--fill {
+    display: none;
+  }
+  .cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .card {
+    min-height: 0;
+  }
+  .loc__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 0.5rem;
+  }
+  .loc__address {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 520px) {
+  .cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* The 18ch cap that used to sit here is gone. On .quote the ch unit resolved
+     against the inherited 16px body size, not the 27px display size, so it
+     computed to ~165px — narrower than "sweetheart" — and every phrase wrapped.
+     Together with the 26ch on the desktop rule, that is what produced the
+     one-word-per-line stack. The cap now lives on .quote__text, where ch means
+     what it looks like it means. */
+}
+
+/* ══ reduced motion ═══════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  /* Exempt the palette from the blanket kill above. A colour crossfade isn't
+     motion, and it's what replaces the stir here — the rule would otherwise
+     snap the theme and there'd be no transition at all. Matches the drink's
+     own FADE_DUR. --wash-r is deliberately left dead: no ripple in this mode. */
+  /* .hero, not :root — the live pair moved onto the hero when the colourway was
+     scoped out of the rest of the page, and this exemption has to follow it or
+     the blanket rule above snaps the theme with no crossfade at all. */
+  .hero {
+    transition-property: --plate, --ink !important;
+    transition-duration: 0.4s !important;
+    transition-timing-function: linear !important;
+  }
+  #cup,
+  .cup-shadow {
+    opacity: 1;
+  }
+  .arrow {
+    animation: none;
+  }
+}
+
+/* ══ HERO BEAN + STORY ════════════════════════════════════════════════════
+   The hero is pinned and the bean takes it over: everything else clears the
+   stage, the bean holds dead centre, and the three chapters scroll past it.
+   Driven entirely by src/hero-bean.js.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Opaque. With pinSpacing:false the menu scrolls up BEHIND the pinned hero
+   long before the handoff, and a see-through hero would show it the whole way
+   — the two must never be on screen together. The plate colour is what .page
+   paints anyway, so at rest this changes nothing. Its own element rather than
+   a background on .hero, so the handoff can lift it off without taking the
+   bean canvas (a child) with it. */
+.hero-backdrop {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  background: var(--plate);
+  pointer-events: none;
+}
+
+/* ── THE STORY STAGE ───────────────────────────────────────────────────────
+   Sticks to the viewport for the length of the story, then fades out. The menu
+   below it is an ordinary section that scrolls in afterwards — nothing slides
+   over anything, which is the whole point: an earlier version had the menu
+   travel up across a still-stuck stage, and watching a hard sheet edge cut
+   through the bean and the chapter copy was the thing that read badly.
+
+   top: 9px and the matching height keep the stage inside .page's 9px frame
+   rather than sticking flush to the viewport edge and being clipped by it. */
+.stage {
+  position: sticky;
+  top: 9px;
+  height: calc(100svh - 18px);
+  /* Was on .hero, which is now 320svh tall — the padding belongs to the screen
+     the reader actually sees. */
+  padding: 10vh 4vw 0 5vw;
+  overflow: clip;
+  /* Under the menu (2). Both participate in the root stacking context: .hero is
+     z-index auto and creates none, which is why the perspective that used to
+     live there had to go — it would have trapped this underneath. */
+  z-index: 1;
+}
+
+
+/* Absolute INSIDE .stage — it has to be part of the panel so it swings with the
+   window. It cannot be `position: fixed`: a transformed ancestor becomes the
+   containing block for fixed descendants, so the canvas would detach from the
+   panel and hang in the viewport while the window rotated away around it.
+
+   z-index 3 keeps the bean above the drink (2) during the takeover, when the
+   drink is still on screen sliding out. */
+.bean-layer {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  /* Covers the viewport, so it would otherwise eat every click on the page. */
+  pointer-events: none;
+  /* Faded up by JS once the GLB decodes; at rest the page looks untouched. */
+  opacity: 0;
+}
+
+
+/* ── chapter zero ───────────────────────────────────────────────────────── */
+/* Sits below the bean's zone and rises past it exactly as the chapters do, so
+   the first real chapter reads as a continuation rather than a cold start.
+   Y and opacity belong to the scrub — no CSS transform here, or GSAP would
+   parse it into a frozen pixel offset at init. */
+.intro-title {
+  position: absolute;
+  z-index: 3;
+  /* 72%, not 68%: the block rides a few vh above this anchor at its held
+     moment (it is already mid-rise), and the bean's lower tip reaches 66vh —
+     at 68% the eyebrow landed on top of it. It still rises past the bean
+     afterwards, which is the point. */
+  /* Dead centre, and it now has the frame to ITSELF: the object no longer
+     arrives until the title has left (P_TAKEOVER moved to 0.20, the title is
+     out by 0.19). The old 72% was a dodge — the block was nudged down to keep
+     the eyebrow off the bean, and it still passed straight through it. */
+  top: 50%;
+  translate: 0 -50%;
+  left: 0;
+  right: 0;
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+.intro-title__eyebrow {
+  font-family: var(--ui);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--ink) 60%, transparent);
+  margin-bottom: 1.1em;
+}
+
+.intro-title__line {
+  font-family: 'Bodoni Moda', Didot, serif;
+  font-size: clamp(28px, 5vw, 86px);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+}
+
+@media (max-width: 768px) {
+  .intro-title { top: 58%; }
+  .intro-title__line { font-size: clamp(26px, 8.5vw, 46px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Becomes an ordinary heading above the stacked chapters. */
+  .intro-title {
+    position: relative;
+    top: auto;
+    opacity: 1;
+    text-align: left;
+    margin-bottom: clamp(32px, 6vh, 56px);
+  }
+}
+
+/* ── story chapters ─────────────────────────────────────────────────────── */
+/* Vertically centred and side-positioned so they never cross the centred bean.
+   Y and opacity are owned by the scrub — no CSS transform here, or GSAP would
+   parse it into a fixed pixel offset at init and freeze it. */
+.chapter {
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  width: min(26vw, 22rem);
+  margin-top: -8rem;
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+/* 01 right, 02 left, 03 right — alternating past the centred bean. */
+.chapter--1,
+.chapter--3 { left: 64vw; }
+.chapter--2 { left: 12vw; }
+
+.chapter__num {
+  font-family: 'Bodoni Moda', Didot, serif;
+  font-size: clamp(56px, 7vw, 120px);
+  font-weight: 900;
+  line-height: 0.8;
+  color: color-mix(in srgb, var(--ink) 12%, transparent);
+  margin-bottom: -0.06em;
+  user-select: none;
+}
+
+.chapter__title {
+  font-family: 'Bodoni Moda', Didot, serif;
+  font-size: clamp(26px, 2.9vw, 50px);
+  font-weight: 700;
+  line-height: 1.04;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+  margin-bottom: 0.5em;
+}
+
+.chapter__body {
+  font-family: var(--ui);
+  font-size: clamp(13px, 0.95vw, 17px);
+  font-weight: 500;
+  line-height: 1.6;
+  color: color-mix(in srgb, var(--ink) 75%, transparent);
+}
+
+/* ── pin progress ───────────────────────────────────────────────────────── */
+/* Sits on the hero's bottom edge and fills as the pin plays. Scaled with a
+   transform rather than animating width, so it never triggers layout. */
+.hero-progress {
+  position: absolute;
+  z-index: 4;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  opacity: 0;
+  pointer-events: none;
+}
+.hero-progress i {
+  display: block;
+  height: 100%;
+  background: var(--ink);
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+
+/* ── mobile ─────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Bean sits top-centre and the copy passes beneath it rather than beside —
+     there is no room for a side column at this width. */
+  .chapter {
+    top: auto;
+    bottom: 8vh;
+    left: 6vw;
+    right: 6vw;
+    width: auto;
+    margin-top: 0;
+  }
+  .chapter--1,
+  .chapter--2,
+  .chapter--3 { left: 6vw; }
+
+  .chapter__num { font-size: clamp(44px, 13vw, 76px); }
+  .chapter__title { font-size: clamp(24px, 6.5vw, 38px); }
+  .chapter__body { font-size: clamp(13px, 3.6vw, 16px); }
+}
+
+/* ── reduced motion ─────────────────────────────────────────────────────── */
+/* No pin and no scrub, so the chapters cannot arrive by scrolling — they
+   become ordinary stacked blocks under the hero instead, and the bean is not
+   loaded at all. hero-bean.js returns early on the same flag. */
+@media (prefers-reduced-motion: reduce) {
+  .bean-layer,
+  .hero-progress {
+    display: none;
+  }
+  .chapter {
+    position: relative;
+    top: auto;
+    bottom: auto;
+    left: auto !important;
+    right: auto;
+    width: 100%;
+    max-width: 44rem;
+    margin: 0 0 clamp(40px, 7vh, 72px);
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+/* ── flyover landing ──────────────────────────────────────────────────────
+   The first card is the story's destination, so it gets a one-shot border
+   pulse as the pin releases. Time-based, not scrubbed: a scrubbed pulse would
+   run backwards when the reader scrolls up, which reads as a glitch.
+   ─────────────────────────────────────────────────────────────────────────── */
+@keyframes card-arrive {
+  0%   { box-shadow: 0 2px 0 0 color-mix(in srgb, var(--menu-accent, var(--feature)) 0%, transparent); }
+  55%  { box-shadow: 0 3px 0 0 var(--menu-accent, var(--feature)); }
+  100% { box-shadow: 0 2px 0 0 color-mix(in srgb, var(--menu-accent, var(--feature)) 0%, transparent); }
+}
+.carousel__order.is-arrived {
+  animation: card-arrive 1s var(--ease) 1;
+  border-color: var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* No flyover in this mode — the story is a stack of static blocks and the
+     menu simply follows it, so there is no arrival to punctuate. */
+  .carousel__order.is-arrived { animation: none; }
+}
+
+/* ══ PRELOADER ════════════════════════════════════════════════════════════
+   "Liquid pour" intro, added from em-preloader_3.html. Rules are copied
+   verbatim from that file EXCEPT for two deliberate omissions:
+
+   - its `:root` block is NOT copied. It declares --ink and --cream, both of
+     which this site already defines and uses for its own palette — pulling it
+     in would repaint every heading and body copy on the page. The only colour
+     the preloader actually needs is the cover cream, scoped below so it cannot
+     leak out of the overlay.
+   - its `*`, `body`, `.site`, `nav`, `.hero` and `.replay` rules are the demo
+     page's own furniture, not the preloader, and this site has its own.
+   ═══════════════════════════════════════════════════════════════════════════ */
+#preloader{
+  --pl-cream:#F6F1E8;
+  /* Were the inline fallbacks on the rules below (3s / 2.2s). Hoisted here so
+     these two durations and the JS cue times that overlap them sit in one
+     place — they are one timeline and drift apart silently otherwise. */
+  --pour-dur:2.2s;
+  /* The detail wipe's mask is a GRADIENT, so the reveal finishes before the
+     transform does: white fully clears the details' lowest point (y=250) at
+     translateY(-25), i.e. 88.4% of the 215px travel = 65.5% of this duration.
+     The last third of it is invisible, and the wordmark used to wait for it. */
+  --fill-dur:1.4s;
+  --compose-dur:.7s;
+  position:fixed; inset:0; z-index:1000;
+}
+#preloader .panel{
+  position:absolute; top:0; bottom:0;
+  width:25.5%;
+  background:var(--pl-cream);
+}
+#preloader .panel:nth-child(1){left:0}
+#preloader .panel:nth-child(2){left:25%}
+#preloader .panel:nth-child(3){left:50%}
+#preloader .panel:nth-child(4){left:75%}
+#preloader .panel.lift{
+  transition:transform .6s cubic-bezier(.7,0,.3,1);
+  transform:translateY(-102%);
+}
+
+#markWrap{
+  position:absolute; inset:0;
+  display:flex; align-items:center; justify-content:center;
+}
+#markWrap.exit{
+  transition:transform .5s cubic-bezier(.6,0,.8,.5);
+  transform:translateY(-75vh);
+}
+#loaderMark{
+  width:min(56vmin,430px);
+  height:auto;
+  overflow:visible;
+  transform:translateX(23.3%);   /* clover sits at screen center first */
+}
+#loaderMark.compose{
+  transition:transform var(--compose-dur) cubic-bezier(.25,.1,.2,1);
+  transform:translateX(0);       /* full logo re-centers */
+}
+#wordmark{
+  transform:translateY(80px);    /* below the masked window - hidden */
+}
+#wordmark.compose{
+  /* Was .95s against the mark's .9s. Both now share --compose-dur: they are one
+     gesture (the logo assembling itself), and a 50ms split between them was not
+     a deliberate offset, just drift. */
+  transition:transform var(--compose-dur) cubic-bezier(.2,.7,.2,1);
+  transform:translateY(0);       /* rises into place */
+}
+
+/* The liquid: a wide wavy sheet that rises inside the clover.
+   Rise = vertical transition on the outer group.
+   Slosh = seamless horizontal loop on the inner wave. */
+#rise{
+  transform:translateY(118px);
+}
+#rise.pour{
+  transition:transform var(--pour-dur,3s) cubic-bezier(.4,.12,.25,1);
+  transform:translateY(0);
+}
+#wave{
+  animation:slosh 1.7s linear infinite;
+}
+@keyframes slosh{
+  from{transform:translateX(0)}
+  to{transform:translateX(-40px)}
+}
+
+/* Angled fill wipe for the white details */
+#maskRect{
+  transform:translateY(-215px);
+}
+#maskRect.reveal{
+  transition:transform var(--fill-dur,2.2s) cubic-bezier(.55,.06,.28,.99);
+  transform:translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce){
+  #rise, #maskRect, #wave, #markWrap, #preloader .panel, #loaderMark, #wordmark{animation:none !important; transition:none !important}
+  #rise{transform:translateY(0)}
+  #maskRect{transform:translateY(0)}
+  #loaderMark{transform:translateX(0)}
+  #wordmark{transform:translateX(0)}
+}
+
+/* ══ FULL MENU PAGE ═══════════════════════════════════════════════════════
+   Image-first reference list. Same system as the homepage — cream ground, ink
+   teal, Didone headings, sans body — but no 3D and no scroll choreography.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.menupage {
+  /* The nav is fixed, so the page has to reserve its footprint or the eyebrow
+     lands underneath it. Same clearance the homepage menu section uses. */
+  padding: calc(var(--nav-h) + 24px) var(--gutter) clamp(4rem, 10vh, 7rem);
+}
+
+.menupage__back {
+  display: inline-block;
+  margin-bottom: clamp(1.2rem, 3vh, 2rem);
+  font-family: var(--ui);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--ink) 65%, transparent);
+}
+.menupage__back:hover { color: var(--ink); }
+
+.menupage__head .section__title {
+  margin-top: 0.15em;
+}
+
+/* Content is capped and centred; only the sticky bar's BACKGROUND goes
+   full-bleed. Without this an ultrawide screen just keeps adding columns and
+   the cards shrink back to the towers this replaced. */
+.menupage__head,
+.jump__list,
+#menu-categories {
+  max-width: 1360px;
+  margin-inline: auto;
+}
+
+/* ── the stacked header ─────────────────────────────────────────────────────
+   Two bars that must read as ONE unit when both are pinned: the fixed nav on
+   top, the sticky category bar flush beneath it. Both fully opaque, because
+   nothing may ever be legible through either of them.
+
+   The jump bar's top is exactly --nav-h, which is the nav's real height, so
+   there is no gap to show content through and no overlap to double the
+   hairline. Its z-index is one below the nav's 60, so if they ever do meet the
+   nav wins. */
+/* The /menu header uses the SAME two states as the homepage; menu-page.js
+   simply pins it in the scrolled one, because that page has no hero to be
+   transparent over — content starts immediately under the bar. The rules that
+   used to live here (opaque background, 9px strip, hairline) are now the shared
+   .nav.is-scrolled state and were deleted rather than duplicated. */
+
+.jump {
+  position: sticky;
+  top: var(--nav-h);
+  z-index: 59; /* one under the nav */
+  margin: clamp(1.5rem, 4vh, 2.6rem) calc(var(--gutter) * -1) clamp(2rem, 5vh, 3rem);
+  /* Symmetric, so the active underline is not pressed against the hairline. */
+  padding: 12px var(--gutter);
+  /* OPAQUE. This was a 92% plate mix over a blur, which is what produced the
+     translucent band — card photos slid visibly through it. A backdrop-filter
+     also forces the whole strip to re-composite on every scroll frame for an
+     effect the design does not otherwise use anywhere. */
+  background-color: var(--plate);
+  border-bottom: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
+}
+
+.jump__list {
+  display: flex;
+  gap: clamp(1rem, 2.4vw, 2.2rem);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.jump__list::-webkit-scrollbar { display: none; }
+
+.jump__link {
+  position: relative;
+  display: block;
+  padding-bottom: 5px;
+  font-family: var(--ui);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: color-mix(in srgb, var(--ink) 55%, transparent);
+  transition: color 0.3s var(--ease);
+}
+.jump__link::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 2px;
+  background: var(--feature);
+  transform: scaleX(0);
+  transition: transform 0.3s var(--ease);
+}
+.jump__link:hover { color: var(--ink); }
+.jump__link.is-active { color: var(--ink); }
+.jump__link.is-active::after { transform: scaleX(1); }
+
+/* ── category ───────────────────────────────────────────────────────────── */
+.mcat {
+  /* Clears the WHOLE stacked header, plus a little daylight, so a jumped-to
+     heading lands below both bars instead of behind them.
+
+     --jump-h is measured at runtime (see menu-page.js) rather than guessed: the
+     bar's height depends on the link font metrics and on whether it wraps, and
+     the previous hardcoded 72px was already wrong for the padding it had. The
+     fallback matches the bar at its default size in case the script has not run.
+
+     NOTE: menu-page.js also zeroes the document's scroll-padding-top for this
+     page. That global 5rem composes with scroll-margin-top rather than
+     overriding it, so leaving it in place would push every jump 80px too far. */
+  scroll-margin-top: calc(var(--nav-h) + var(--jump-h, 45px) + 16px);
+  margin-bottom: clamp(3rem, 7vh, 5rem);
+}
+
+.mcat__head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.9rem;
+  padding-bottom: 0.7rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--ink) 30%, transparent);
+  margin-bottom: clamp(1.2rem, 3vh, 1.8rem);
+}
+
+.mcat__name {
+  font-family: 'Bodoni Moda', Didot, 'Times New Roman', serif;
+  font-weight: 700;
+  font-size: clamp(24px, 2.6vw, 34px);
+  line-height: 1.05;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+  font-optical-sizing: none;
+  font-variation-settings: 'opsz' 96;
+}
+
+.mcat__aside {
+  font-family: 'Bodoni Moda', Didot, serif;
+  font-style: italic;
+  font-size: clamp(12px, 1.1vw, 15px);
+  color: color-mix(in srgb, var(--ink) 60%, transparent);
+}
+
+.mcat__grid {
+  display: grid;
+  /* 280px floor: 4 across at 1440, 5 on very wide, 3 at laptop widths. At the
+     old 210px a 1440 viewport fitted seven, and a 4/5 image on a 150px card
+     reads as a tower rather than a product. */
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 24px;
+}
+
+/* ── item card ──────────────────────────────────────────────────────────── */
+.mcard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--plate);
+  border: 1px solid color-mix(in srgb, var(--ink) 15%, transparent);
+  border-radius: 12px;
+  overflow: hidden;
+  transition:
+    border-color 0.25s var(--ease),
+    transform 0.25s var(--ease),
+    box-shadow 0.25s var(--ease);
+}
+.mcard:hover {
+  border-color: var(--ink);
+  transform: translateY(-3px);
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--ink) 10%, transparent);
+}
+
+/* Sold-out items STAY in the grid — the menu should show what exists, and a
+   missing row reads as an error rather than as unavailability. */
+.mcard.is-sold-out {
+  opacity: 0.4;
+}
+
+.mcard__media {
+  position: relative;
+  /* Squarer than 4/5 — at the new width that was still reading tall. */
+  aspect-ratio: 4 / 4.5;
+  overflow: hidden;
+  background: var(--plate);
+}
+.mcard__photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1);
+  transition: transform 0.4s var(--ease);
+}
+.mcard:hover .mcard__photo { transform: scale(1.04); }
+
+/* The designed empty state: a category-tinted wash, the clover, and the item's
+   initials. Never a grey box — a considered placeholder reads as "photo to
+   come", a grey one reads as a broken image. */
+.mcard__media--placeholder {
+  background: color-mix(in srgb, var(--tint) 18%, var(--plate));
+  display: grid;
+  place-items: center;
+}
+.mcard__clover {
+  display: block;
+  width: 48px;
+  color: var(--tint);
+  opacity: 0.35;
+  transform: scale(1);
+  transition: transform 0.4s var(--ease);
+}
+.mcard:hover .mcard__clover { transform: scale(1.04); }
+.mcard__clover svg { width: 100%; height: auto; display: block; }
+
+.mcard__initials {
+  position: absolute;
+  left: 12px;
+  bottom: 10px;
+  font-family: 'Bodoni Moda', Didot, serif;
+  font-style: italic;
+  font-size: 20px;
+  color: color-mix(in srgb, var(--ink) 20%, transparent);
+}
+
+.mcard__sold {
+  position: absolute;
+  inset: auto 0 0 0;
+  padding: 6px 12px;
+  background: color-mix(in srgb, var(--ink) 82%, transparent);
+  color: var(--plate);
+  font-family: var(--ui);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+/* Overlaps the image's top-left corner rather than sitting inside the body —
+   it labels the product, not the copy. */
+.mcard__badge {
+  position: absolute;
+  z-index: 2;
+  top: 10px;
+  left: 10px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--feature);
+  color: #fffdf6;
+  font-family: var(--ui);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.mcard__body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  padding: 16px 18px 18px;
+}
+
+.mcard__name {
+  font-family: var(--ui);
+  font-weight: 500;
+  font-size: 16px;
+  line-height: 1.25;
+  color: var(--ink);
+}
+
+.mcard__note {
+  margin-top: 7px;
+  font-family: var(--ui);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.45;
+  color: color-mix(in srgb, var(--ink) 75%, transparent);
+  /* Three lines then ellipsis, so an eight-word note and a twenty-word one
+     produce the same card height. */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.mcard__price {
+  margin-top: auto;
+  padding-top: 10px;
+  font-family: var(--script);
+  font-size: 17px;
+  color: var(--ink);
+  opacity: 0.4; /* TODO: real prices — see menu-data.js */
+}
+
+@media (max-width: 640px) {
+  /* A 160px floor lets a large phone or small tablet find a third column
+     rather than stretching two very wide. */
+  .mcat__grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+  .mcard__note { -webkit-line-clamp: 2; }
+}
+
+@media (max-width: 460px) {
+  /* Two columns, stated explicitly rather than left to auto-fill. On a 390px
+     phone the content box is 324px, and a 160px floor plus the 12px gap needs
+     332 — eight pixels short, so auto-fill silently dropped to ONE column.
+     Below this width the count is the requirement, not the floor. */
+  .mcat__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .mcard__body { padding: 10px 11px 12px; }
+  .mcard__name { font-size: 14px; }
+  .mcard__note { font-size: 12px; }
+}
+
+/* ══ ASSET PLACEHOLDERS ═══════════════════════════════════════════════════
+   Every image/video slot outside the hero renders one of these when its asset
+   is missing. Same clover-on-tint language as the menu cards, so an unfinished
+   page still reads as composed rather than broken — and the filename is shown
+   rather than hidden, because the point of the state is to say what to make.
+   ══════════════════════════════════════════════════════════════════════════ */
+.ph {
+  position: relative;
+  display: grid;
+  place-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  aspect-ratio: var(--ph-ratio, 1 / 1);
+  background: color-mix(in srgb, var(--ph-tint, var(--sage)) 16%, var(--plate));
+  color: color-mix(in srgb, var(--ink) 55%, transparent);
+  overflow: hidden;
+}
+.ph__mark {
+  width: clamp(38px, 14%, 92px);
+  opacity: 0.38;
+}
+.ph__mark svg { width: 100%; height: auto; display: block; }
+.ph__label,
+.ph--failed {
+  font-family: var(--ui);
+  font-size: clamp(10px, 0.78vw, 12px);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.ph__note {
+  font-family: var(--ui);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+/* A declared asset that 404s lands here — distinct from "never supplied". */
+.ph--failed {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background: color-mix(in srgb, var(--feature) 14%, var(--plate));
+  color: color-mix(in srgb, var(--ink) 60%, transparent);
+}
+/* Real media fills its slot identically, so swapping a placeholder for a photo
+   never changes the layout around it. */
+.ph-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}/* ══ #BeInTheMoment GRID ══════════════════════════════════════════════════ */
+.moment {
+  background: var(--plate);
+  padding-block: 12vh;
+}
+.moment__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: clamp(1.4rem, 3vh, 2.2rem);
+}
+.moment__tag {
+  font-family: var(--script);
+  font-style: italic;
+  letter-spacing: 0.04em;
+  font-size: clamp(1.6rem, 3.4vw, 3rem);
+  color: var(--ink);
+}
+.moment__link {
+  font-family: var(--ui);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--ink) 65%, transparent);
+}
+.moment__link:hover { color: var(--ink); }
+.moment__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(8px, 1vw, 16px);
+}
+.moment__tile {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  aspect-ratio: 1 / 1;
+}
+.moment__tile > * { transition: transform 0.6s var(--out); }
+.moment__tile:hover > * { transform: scale(1.03); }
+/* Tint on hover, over the image rather than on it, so it works for the
+   placeholder state too. */
+.moment__tile::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--teal-deep) 20%, transparent);
+  opacity: 0;
+  transition: opacity 0.4s var(--out);
+  pointer-events: none;
+}
+.moment__tile:hover::after { opacity: 1; }
+
+@media (max-width: 768px) {.moment__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .moment__tile > *,
+  .moment__tile::after { transition: none; }
+}@media (max-width: 768px) {}
+
+@media (prefers-reduced-motion: reduce) {.bean-layer { filter: none !important; }
+}
+
+/* ══ THE SWEETHEART REVEAL — the locket ═══════════════════════════════════
+   A heart keyline draws around the standing cup, the shroud's hole opens at
+   exactly that size so footage appears as a RING around the cup, then the heart
+   blooms to full bleed and the cup dissolves into the film.
+
+   THE Z-ORDER IS THE MECHANIC, so it is declared explicitly and in one place:
+
+     1 video      the footage
+     2 scrim      legibility wash, under the shroud so it is only seen through it
+     3 copy       payoff text — also under the shroud, so the bloom reveals it
+     4 shroud     cream ground with the heart cut out of it
+     5 cupshadow  above the shroud: the cup sits ON the cream, not behind it
+     6 cup        the locket's subject
+     7 keyline    the amber ring, above everything it encircles
+
+   The cup being ABOVE the shroud is what makes the ring read: the hole exposes
+   footage, and the cup then occludes the middle of it.
+
+   Every colour is a STATIC token. This layer lives inside the hero, where
+   --plate/--ink are the live colourway pair, so using those would make the
+   reveal's cream ground shift hue with the drink switcher. */
+.sweet {
+  position: absolute;
+  inset: 0;
+  z-index: 6; /* over the bean canvas and the chapters, under the nav */
+  visibility: hidden;
+  pointer-events: none;
+}
+.sweet__layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  z-index: 1;
+}
+.sweet__video,
+.sweet__video video,
+.sweet__video img,
+.sweet__video .ph {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* The placeholder has to be judgeable as the real thing: a teal ground so the
+   cream shroud, the cup and the cream type all read against it exactly as they
+   will over footage. */
+.sweet__video .ph {
+  background: var(--teal-deep);
+  aspect-ratio: auto;
+}
+
+.sweet__scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: linear-gradient(
+    to bottom,
+    transparent 45%,
+    color-mix(in srgb, var(--teal-deep) 62%, transparent) 100%
+  );
+}
+
+.sweet__copy {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  bottom: clamp(8vh, 14vh, 18vh);
+  translate: -50% 0;
+  width: min(90vw, 60rem);
+  text-align: center;
+  color: var(--cream);
+}
+/* Each line is its own mask with an inner span; the inner translates, so the
+   line is revealed rather than faded. */
+.sweet__line { overflow: hidden; margin: 0; }
+.sweet__in { display: block; will-change: transform; }
+.sweet__line--lead {
+  font-family: var(--script);
+  font-size: clamp(2.1rem, 6.4vw, 5.4rem);
+  line-height: 1.06;
+  letter-spacing: -0.01em;
+}
+.sweet__line--sub {
+  font-family: var(--script);
+  font-size: clamp(1.05rem, 2.3vw, 1.9rem);
+  line-height: 1.32;
+  opacity: 0.94;
+}
+.sweet__line--sub:first-of-type { margin-top: clamp(0.6rem, 1.6vh, 1.1rem); }
+.sweet__line--tag {
+  font-family: var(--script);
+  font-style: italic;
+  color: var(--amber);
+  font-size: clamp(1rem, 2.1vw, 1.7rem);
+  margin-top: clamp(0.9rem, 2.4vh, 1.6rem);
+}
+
+.sweet__shroud {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.sweet__shroud [data-sweet-cut] { fill: var(--cream); }
+
+/* The cup, and the ground it stands on. Centred on the stage — where the story
+   has been holding its object all along — and on mobile it follows the stacked
+   position the bean uses. `translate` does the centring so GSAP-free inline
+   `transform: scale()` from the driver composes with it instead of fighting it. */
+.sweet__cup {
+  position: absolute;
+  z-index: 6;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+  height: 46vh;
+  aspect-ratio: 3 / 4;
+  will-change: transform, opacity, filter;
+}
+.sweet__cup img,
+.sweet__cup .ph {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.sweet__cupshadow {
+  position: absolute;
+  z-index: 5;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+  width: 30vh;
+  height: 6vh;
+  margin-top: 24vh; /* sits at the cup's base */
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse at center,
+    color-mix(in srgb, var(--teal-deep) 26%, transparent) 0%,
+    transparent 70%
+  );
+  filter: blur(6px);
+}
+
+.sweet__keyline {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+/* 2.4px apparent, and it stays that way at every heart size because the path is
+   rebuilt rather than scaled by a transform — there is no group scale to
+   compensate against. */
+.sweet__keyline [data-sweet-key] {
+  stroke: var(--amber);
+  stroke-width: 2.4;
+  stroke-linejoin: round;
+}
+
+/* Header during the beat: logo and clover only. */
+.nav.is-cinema::before,
+.nav.is-cinema::after { opacity: 0; }
+/* !important because GSAP's intro writes an INLINE opacity on .pills, and an
+   inline style beats any stylesheet rule without it — which is why ORDER NOW
+   stayed lit through the cinematic hold whenever revealIntro()'s clearProps had
+   not run. Do not drop the flag. */
+.nav.is-cinema .pills { opacity: 0 !important; pointer-events: none !important; }
+/* .logo-mark, not just .nav__logo: the mark declares its own colour, which beats
+   the cream inherited from the link, so currentColor inside the inlined SVG
+   resolved to teal and the wordmark went invisible against the video. */
+.nav.is-cinema .nav__logo,
+.nav.is-cinema .nav__logo .logo-mark,
+.nav.is-cinema .nav__mark { color: var(--cream); }
+.nav.is-cinema { background: transparent; backdrop-filter: none; }
+
+@media (max-width: 768px) {
+  .sweet__copy {
+    width: 88vw;
+    bottom: clamp(9vh, 13vh, 16vh);
+    text-wrap: balance;
+  }
+  /* Follows the stacked object position the journey uses on mobile. */
+  .sweet__cup { top: 32%; height: 34vh; }
+  .sweet__cupshadow { top: 32%; width: 22vh; height: 4.5vh; margin-top: 17vh; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sweet.is-static .sweet__in { transform: none !important; opacity: 1 !important; }
+  .sweet.is-static { visibility: visible !important; opacity: 1 !important; }
+}
+/* Reduced motion holds the cup inside the ring over the poster, so the copy sits
+   partly on cream — cream-on-cream is invisible, hence the dark token here. */
+.sweet.is-static .sweet__copy { color: var(--cream); }
+
+
+/* ── the takeover latch ───────────────────────────────────────────────────
+   Once the hero's takeover has begun, its furniture stays gone. Applied by a
+   toggleClass ScrollTrigger in hero-bean.js, so the state is derived from scroll
+   POSITION: it survives unpin, resize and ScrollTrigger.refresh(), and releases
+   again when you scroll back up into the hero.
+
+   The scrub alone could not hold this. Its writes stop at the end of the pin's
+   range, so whatever it last set persists — and the drink's cast shadow was not
+   faded at all, only translated 1.1 viewports down the stage, which parked it
+   over the menu section still opaque and still taking clicks.
+
+   pointer-events matters as much as opacity here: an element at opacity 0 is
+   still a click target, and these sit above the sections that replace them. */
+.hero.is-taken-over .heroplate,
+.hero.is-taken-over .wm,
+.hero.is-taken-over .tagline,
+.hero.is-taken-over .hero__stamp,
+.hero.is-taken-over .colorways,
+.hero.is-taken-over .arrow,
+.hero.is-taken-over .cup-stage,
+.hero.is-taken-over .cup-shadow,
+.hero.is-taken-over #cup {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* ══ HERO LIFESTYLE PLATE ═════════════════════════════════════════════════
+   An arch of footage on the hero's right flank, behind the drink.
+
+   Z-INDEX 1, THE SAME AS THE WORDMARK, and that is deliberate: at equal
+   z-index the later element in the DOM paints on top, and the plate is inserted
+   directly after .hero-backdrop — before the wordmark, the tagline and the cup.
+   So the type is always in front of it without anyone having to keep a stack of
+   magic numbers in sync. The plate is also confined to the right flank, so in
+   practice the display type never crosses it at all. */
+.heroplate {
+  position: absolute;
+  z-index: 1;
+  right: 4vw;
+  width: 42%;
+  /* The vertical band is bounded by the TYPE, not centred on the viewport.
+     Measured at 1440x918: the wordmark runs to y=274 and the swatch row starts
+     at y=841, and the wordmark is 773px wide — so a right-flank plate cannot
+     avoid it horizontally at any sensible width. Sitting between them is what
+     keeps every piece of display type on clean cream, which is the rule this
+     plate is not allowed to break. It still reads as centred behind the drink,
+     because the drink occupies exactly this band too. */
+  top: 32%;
+  bottom: 10%;
+  pointer-events: none;
+}
+/* The arch: half-round top on a squared base — the ritual section's shape. */
+.heroplate__media {
+  position: absolute;
+  inset: 0;
+  border-radius: 50% 50% 0 0;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--teal-deep) 8%, var(--cream));
+}
+.heroplate__media video,
+.heroplate__media img,
+.heroplate__media .ph {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.heroplate__media .ph {
+  background: color-mix(in srgb, var(--teal-deep) 14%, var(--cream));
+  aspect-ratio: auto;
+}
+
+/* The colourway wash. Reads the LIVE --plate on purpose — this is inside the
+   hero and is meant to follow the swatch, so tapping a drink re-grades the
+   footage toward its world. It needs no transition of its own: --plate is
+   @property-registered and already animates on .hero over 0.5s, so the wash and
+   the cup swap move together by construction.
+
+   multiply, so the tint sits IN the image rather than as a film over it. If a
+   given clip comes back muddy under it, drop the blend mode and keep the
+   opacity — the fallback is one line, not a rewrite. */
+.heroplate__wash {
+  position: absolute;
+  inset: 0;
+  background: var(--plate);
+  opacity: 0.18;
+  mix-blend-mode: multiply;
+}
+
+/* Static amber keyline tracing the arch. The ritual section owned the drawn-on
+   version of this; here it is simply present, so the two never competed. */
+.heroplate__key {
+  position: absolute;
+  inset: 0;
+  border: 1.5px solid var(--amber);
+  border-radius: 50% 50% 0 0;
+  opacity: 0.55;
+}
+
+@media (max-width: 768px) {
+  /* A short band rather than a right-hand column: at 390 there is no spare
+     width beside the type, so the plate drops behind and below the cup. */
+  .heroplate {
+    /* Bounded by the type here too, not pinned to the bottom edge. At 390 the
+       hashtag sits at 733 and the swatch row at 781, so a band anchored to
+       bottom:0 ran straight under both. This one lives in the gap between the
+       tagline (ends 251) and the hashtag — which is also exactly where the cup
+       stands, so it still reads as sitting behind the drink. ~48vh. */
+    top: 38%;
+    bottom: 14%;
+    right: 0;
+    left: 0;
+    width: 100%;
+    height: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Poster only, and no colour transition on the wash. */
+  .heroplate__wash { transition: none !important; }
+}
+
+/* ══ THE CATEGORY DECK ════════════════════════════════════════════════════
+   Six category cards that stack as you scroll: each sticks at the top of the
+   viewport while the next climbs over it.
+
+   STICKY, NOT PINNED. Six ScrollTrigger pins would mean six pin-spacers, six
+   stacking contexts and a hand-nursed release at the end. `position: sticky`
+   gives the same read for free and releases itself the moment .deck__stack's
+   box runs out — so the last card hands off to the section below with nothing
+   to clean up. JS only scrubs the covered card's scale and dim.
+
+   THE CARD HEIGHT *IS* THE SCROLL COST. A card sticks until the next one has
+   climbed over it, and that climb is exactly one card's height — so 74vh per
+   card is ~0.74 viewport per transition, which is the budget this section was
+   given. Changing the height changes the pacing; nothing else does.
+
+   Z-INDEX IS SET INLINE, ASCENDING, in deck.js. Later cards must paint over
+   earlier ones, and source order alone will not do it once transforms create
+   stacking contexts. */
+.deck {
+  padding: 0;
+}
+.deck__head {
+  padding: clamp(3rem, 9vh, 6rem) var(--gutter) clamp(1.5rem, 4vh, 3rem);
+}
+.deck__stack {
+  position: relative;
+}
+
+.deckcard {
+  position: sticky;
+  top: 0;
+  min-height: 74vh;
+  display: flex;
+  align-items: center;
+  background: var(--deck-ground);
+  /* The transform origin sits at the top: the covered card shrinks AWAY from
+     the viewer rather than drifting up out from under the covering card. */
+  transform-origin: 50% 20%;
+  will-change: transform, filter;
+}
+.deckcard__in {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(1.5rem, 5vw, 5rem);
+  /* Top padding clears the fixed header, so a stuck card's copy is never under
+     the bar at its rest point. */
+  padding: calc(var(--nav-h) + clamp(1rem, 3vh, 2rem)) var(--gutter) clamp(2rem, 6vh, 4rem);
+}
+.deckcard--mirror .deckcard__art { order: 2; }
+
+.deckcard__art {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+.deckcard__cut {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 21rem);
+  height: auto;
+  object-fit: contain;
+}
+.deckcard__art .ph { width: min(100%, 21rem); }
+/* The same grounded ellipse the hero drink stands on. */
+.deckcard__shadow {
+  position: absolute;
+  bottom: 4%;
+  left: 50%;
+  translate: -50% 0;
+  width: 56%;
+  height: 5%;
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse at center,
+    color-mix(in srgb, var(--teal-deep) 22%, transparent) 0%,
+    transparent 70%
+  );
+  filter: blur(7px);
+}
+
+.deckcard__eyebrow {
+  font-family: var(--ui);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--teal-deep) 60%, transparent);
+  margin: 0 0 0.8rem;
+}
+.deckcard__line {
+  font-family: var(--script);
+  font-size: clamp(1.8rem, 4.2vw, 3.5rem);
+  line-height: 1.03;
+  letter-spacing: -0.015em;
+  color: var(--teal-deep);
+  margin: 0 0 0.9rem;
+  text-wrap: balance;
+}
+.deckcard__body {
+  font-size: clamp(0.9rem, 1.02vw, 1.02rem);
+  line-height: 1.6;
+  max-width: 32rem;
+  color: color-mix(in srgb, var(--teal-deep) 82%, transparent);
+  margin: 0 0 1.3rem;
+}
+/* Same dashed-stub language as the locations' ordering slot and the old panels,
+   except this one is live: it goes to a category that exists. */
+.deckcard__more {
+  font-family: var(--ui);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--teal-deep);
+  border-bottom: 2px solid var(--amber);
+  padding-bottom: 2px;
+}
+.deckcard__more:focus-visible { outline: 3px solid var(--amber); outline-offset: 3px; }
+
+@media (max-width: 768px) {
+  /* Cut-out above the copy, and the mirror is dropped — a stacked mirror just
+     reads as broken. */
+  .deckcard__in {
+    grid-template-columns: minmax(0, 1fr);
+    gap: clamp(0.8rem, 3vh, 1.6rem);
+  }
+  .deckcard--mirror .deckcard__art { order: 0; }
+  .deckcard__cut,
+  .deckcard__art .ph { width: min(52%, 11rem); }
+  .deckcard { min-height: 78vh; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* No stacking and no pinning: a plain vertical run of cards. */
+  .deckcard {
+    position: relative;
+    top: auto;
+    transform: none !important;
+    filter: none !important;
+    min-height: 0;
+  }
+}
+
+/* ══ ANNOUNCEMENT BANNER ══════════════════════════════════════════════════ */
+.banner {
+  /* IN FLOW, not fixed. Fixed, it sat over the page forever and permanently
+     stole --banner-h from the header's offset; in flow it scrolls away like any
+     other content and the header closes back up behind it. --banner-h is still
+     published, because the header is fixed and has to clear the bar while the
+     bar is on screen. */
+  position: relative;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 9px var(--gutter);
+  background: var(--teal-deep);
+  color: var(--cream);
+}
+.banner__text {
+  font-family: var(--ui);
+  font-size: clamp(11px, 1.05vw, 13px);
+  letter-spacing: 0.06em;
+  margin: 0;
+  text-align: center;
+}
+.banner__link {
+  color: var(--amber);
+  font-weight: 700;
+  margin-left: 0.6rem;
+  white-space: nowrap;
+}
+.banner__x {
+  position: absolute;
+  right: calc(var(--gutter) * 0.4);
+  appearance: none;
+  background: none;
+  border: 0;
+  color: color-mix(in srgb, var(--cream) 70%, transparent);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+.banner__x:hover { color: var(--cream); }
+.banner__x:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+
+/* ══ REWARDS BAND ═════════════════════════════════════════════════════════
+   Honest coming-soon. No points, no tiers, no invented programme. */
+.rewards {
+  background: var(--teal-deep);
+  color: var(--cream);
+  text-align: center;
+  padding: clamp(3rem, 9vh, 6rem) var(--gutter);
+}
+.rewards__head {
+  font-family: var(--script);
+  font-size: clamp(2rem, 4.6vw, 3.6rem);
+  line-height: 1.05;
+  margin: 0 0 0.7rem;
+}
+.rewards__line {
+  font-size: clamp(0.92rem, 1.1vw, 1.05rem);
+  margin: 0 0 1.6rem;
+  opacity: 0.9;
+}
+.rewards__cta {
+  display: inline-block;
+  font-family: var(--ui);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--amber);
+  border: 1.5px solid var(--amber);
+  border-radius: 999px;
+  padding: 12px 26px;
+  transition: background-color 0.35s var(--out), color 0.35s var(--out);
+}
+.rewards__cta:hover { background: var(--amber); color: var(--teal-deep); }
+.rewards__cta:focus-visible { outline: 3px solid var(--amber); outline-offset: 3px; }
+
+.footer__news {
+  font-size: clamp(0.85rem, 1vw, 0.98rem);
+  margin: 0 0 0.9rem;
+  opacity: 0.9;
+}

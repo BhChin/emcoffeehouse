@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>The full menu — Em Coffee House</title>
+    <meta
+      name="description"
+      content="The full Em Coffee House menu — signature cream coffee, ceremonial matcha, Viet phin drip, espresso, tea refreshers and pastries."
+    />
+    <meta name="theme-color" content="#EFF1E4" />
+
+    <link rel="icon" href="/em-logo.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Archivo Black: display grotesque — LATIN ONLY, never set a drink name
+         in it. Archivo 500/700 and Pacifico both ship the `vietnamese` subset,
+         so `Cà Phê Sữa Đá` etc. live in those. -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700&family=Archivo+Black&family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..900;1,6..96,400..600&family=Playfair+Display:ital,wght@0,400..900;1,400..700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+
+  <body>
+    <a class="skip-link" href="#menu-categories">Skip to the menu</a>
+
+    <!-- page--menu scopes the OPAQUE nav to this page. The homepage's nav is
+         deliberately transparent: it sits over the hero's own cream stage, and
+         the menu sheet that slides up beneath it is a slightly different cream,
+         so an opaque bar there would show a seam against the sheet. Here there
+         is no such backdrop — the page scrolls straight under the nav — so it
+         has to be opaque or the cards read through it. -->
+    <div class="page page--menu">
+      <header class="nav">
+        <a class="nav__logo" href="#top" aria-label="Em Coffee House — top of page">
+          <span class="logo-mark" data-logo aria-hidden="true"></span>
+        </a>
+
+        <!-- The flower mark alone, centre — the reference's middle-glyph slot. -->
+        <div class="nav__mark" aria-hidden="true">
+          <svg viewBox="12 132 117 114" fill="currentColor">
+            <path d="m100.9 164.4c-1.5 0-2.72 0.06-3.18 0.22 1.09-9.44-6.54-30.65-25.08-30.65-14.67 0-28.57 11.83-28.93 29.65-0.02 0.63 0.03 1.24 0.07 1.84-15.46-0.38-30.26 10.19-30.26 25.09 0 13.19 11.75 24.61 26.16 24.61 2.24 0 3.97-0.28 5.15-0.57-3.46 11.64 7.16 30.38 24.9 30.38 14.94 0 28.04-13.19 28.04-29.24 0-15.34-10.59-27.7-22.95-36.74 13.1 6.65 25.05 19.01 25.69 36.01 14.26-0.31 26.09-12.51 26.09-25.71 0-13.73-11.57-24.89-25.7-24.89z" />
+          </svg>
+        </div>
+
+        <nav class="pills" aria-label="Sections">
+          <a class="pill" href="/menu.html">Menu</a>
+          <a class="pill" href="/#story">About</a>
+          <a class="pill" href="#contact">Contact</a>
+          <a class="pill pill--fill" href="/#locations">Order Now</a>
+        </nav>
+      </header>
+
+      <main id="top">
+        <section class="menupage">
+          <header class="menupage__head">
+            <a class="menupage__back" href="/#menu">&larr; Back to signatures</a>
+            <p class="eyebrow">Em Coffee House</p>
+            <h1 class="section__title">The full menu</h1>
+          </header>
+
+          <nav class="jump" aria-label="Menu categories">
+            <ul class="jump__list" id="menu-jump"></ul>
+          </nav>
+
+          <div id="menu-categories"></div>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <!-- The real brand mark, in cream. The giant Pacifico "em" that used to
+             sit here was a script glyph, not the logo. -->
+        <a class="footer__logo" href="#top" aria-label="Em Coffee House — top of page">
+          <span class="logo-mark" data-logo aria-hidden="true"></span>
+        </a>
+
+        <div class="footer__cols">
+          <div class="footer__col" id="contact">
+            <h2 class="footer__label">Say hello</h2>
+            <a class="footer__link" href="mailto:hello@emcoffeehouse.com">hello@emcoffeehouse.com</a>
+            <a class="footer__link" href="https://instagram.com/emcoffeehouse" rel="noopener">@emcoffeehouse</a>
+          </div>
+          <div class="footer__col">
+            <h2 class="footer__label">Hours</h2>
+            <p class="footer__line">Mon – Fri &nbsp; 6:30a – 7p</p>
+            <p class="footer__line">Sat – Sun &nbsp; 7a – 8p</p>
+          </div>
+          <div class="footer__col">
+            <h2 class="footer__label">Locations</h2>
+            <ul class="footer__list" id="footer-locations"></ul>
+          </div>
+          <div class="footer__col">
+            <h2 class="footer__label">Explore</h2>
+            <a class="footer__link" href="/menu.html">Menu</a>
+            <a class="footer__link" href="/#story">About</a>
+            <a class="footer__link" href="/#locations">Order now</a>
+          </div>
+        </div>
+
+        <p class="footer__fine">
+          © 2026 Em Coffee House · San Diego, CA · Brewed with robusta and patience.
+        </p>
+      </footer>
+    </div>
+
+    <script type="module" src="/src/menu-page.js"></script>
+  </body>
+</html>

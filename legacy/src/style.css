@@ -1,0 +1,292 @@
+@font-face {
+  font-family: 'Anton';
+  src: url('/fonts/Anton-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Pacifico';
+  src: url('/fonts/Pacifico-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-display: swap;
+}
+
+:root {
+  --navy: #14252f;
+  --orange: #e8762c;
+  --cream: #f3e7d0;
+  --grotesque: 'Anton', 'Arial Narrow', 'Arial Black', sans-serif;
+  --script: 'Pacifico', cursive;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--navy);
+  color: var(--cream);
+  font-family: var(--grotesque);
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+::selection {
+  background: var(--orange);
+  color: var(--navy);
+}
+
+#scene {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+
+/* ---------- loader ---------- */
+.loader {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  background: var(--navy);
+  transition: opacity 0.7s ease;
+}
+.loader--done {
+  opacity: 0;
+  pointer-events: none;
+}
+.loader__mark {
+  font-family: var(--script);
+  font-size: clamp(3.5rem, 12vw, 7rem);
+  color: var(--orange);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.97);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.03);
+  }
+}
+
+/* ---------- overlay chrome ---------- */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+}
+.overlay > * {
+  pointer-events: auto;
+}
+
+.nav {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: clamp(1rem, 2.5vw, 2rem) clamp(1.1rem, 3vw, 2.6rem);
+  gap: 1rem;
+}
+
+.nav__logo {
+  font-family: var(--script);
+  font-size: clamp(1.9rem, 3.2vw, 2.7rem);
+  color: var(--cream);
+  text-decoration: none;
+  line-height: 1;
+  transition: color 0.25s ease;
+}
+.nav__logo:hover {
+  color: var(--orange);
+}
+
+.nav__pills {
+  display: flex;
+  gap: clamp(0.45rem, 1vw, 0.75rem);
+}
+
+.pill {
+  font-family: var(--grotesque);
+  font-size: clamp(0.62rem, 1.05vw, 0.78rem);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--cream);
+  background: transparent;
+  border: 2px solid var(--cream);
+  border-radius: 999px;
+  padding: 0.62em 1.35em;
+  cursor: pointer;
+  transition: background-color 0.22s ease, color 0.22s ease, border-color 0.22s ease;
+}
+.pill:hover,
+.pill:focus-visible,
+.pill[aria-current='true'] {
+  background: var(--orange);
+  border-color: var(--orange);
+  color: var(--navy);
+  outline: none;
+}
+
+.tagline {
+  position: absolute;
+  left: clamp(1.1rem, 3vw, 2.6rem);
+  bottom: clamp(1.1rem, 3vw, 2.2rem);
+  margin: 0;
+  font-size: clamp(0.6rem, 1vw, 0.74rem);
+  letter-spacing: 0.2em;
+  line-height: 1.7;
+  text-transform: uppercase;
+  color: var(--cream);
+  opacity: 0.62;
+}
+
+.cue {
+  position: absolute;
+  left: 50%;
+  bottom: clamp(1.1rem, 3vw, 2.2rem);
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  transition: opacity 0.5s ease;
+}
+.cue--hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+.cue__label {
+  font-size: 0.6rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+.cue__arrow {
+  width: 11px;
+  height: 11px;
+  border-right: 2px solid var(--orange);
+  border-bottom: 2px solid var(--orange);
+  transform: rotate(45deg);
+  animation: bob 1.9s ease-in-out infinite;
+}
+@keyframes bob {
+  0%,
+  100% {
+    transform: rotate(45deg) translate(0, 0);
+    opacity: 0.4;
+  }
+  50% {
+    transform: rotate(45deg) translate(3px, 3px);
+    opacity: 1;
+  }
+}
+
+/* ---------- vignette (stands in for postprocessing) ---------- */
+.vignette {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse at 50% 45%,
+    rgba(0, 0, 0, 0) 42%,
+    rgba(0, 0, 0, 0.42) 78%,
+    rgba(0, 0, 0, 0.68) 100%
+  );
+}
+
+/* ---------- WebGL-less fallback ---------- */
+.fallback {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 2rem;
+  background: var(--navy);
+  overflow-y: auto;
+}
+.fallback[hidden] {
+  display: none;
+}
+.fallback__inner {
+  text-align: center;
+  max-width: 34rem;
+}
+.fallback__wordmark {
+  margin: 0;
+  font-size: clamp(5rem, 26vw, 15rem);
+  line-height: 0.82;
+  letter-spacing: 0.02em;
+  color: var(--cream);
+}
+.fallback__script {
+  margin: -0.35em 0 0;
+  font-family: var(--script);
+  font-size: clamp(2.2rem, 11vw, 6rem);
+  color: var(--orange);
+  transform: rotate(-5deg);
+}
+.fallback__tag {
+  margin: 2.2rem 0 0;
+  font-size: 0.7rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  opacity: 0.65;
+}
+.fallback__list {
+  margin: 2rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  line-height: 2.1;
+  opacity: 0.75;
+}
+
+/* ---------- responsive: portrait phones ---------- */
+@media (max-width: 640px) {
+  .nav {
+    align-items: flex-start;
+  }
+  .nav__pills {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    max-width: 62vw;
+  }
+  .pill {
+    padding: 0.55em 1.05em;
+  }
+  .tagline {
+    font-size: 0.55rem;
+    letter-spacing: 0.16em;
+  }
+  /* The cue would collide with the tagline on narrow screens. */
+  .cue {
+    left: auto;
+    right: clamp(1.1rem, 3vw, 2.6rem);
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cue__arrow,
+  .loader__mark {
+    animation: none;
+  }
+}

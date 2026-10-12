@@ -1,0 +1,23 @@
+# Build inputs and working files. Vercel uploads the project directory and runs
+# the build itself, so anything here that is not needed AT BUILD TIME is pure
+# upload cost. dist/ is regenerated on the server.
+#
+# Every pattern is ROOT-ANCHORED with a leading slash. A bare `assets` matches
+# a directory of that name at ANY depth, which silently swallowed public/assets/
+# — the bean model and two SVGs 404'd in production while building fine locally.
+/node_modules
+/dist
+
+# 19 MB Meshy export plus the pristine pre-normalisation PNGs. The optimised
+# bean lives in public/assets/ and the normalised photos in public/, both
+# committed, so the build never reads this directory.
+/assets
+
+# One-off asset pipelines: run locally, never during deploy.
+/scripts
+/debug
+
+# Local experiment only — reference footage, never ships.
+# Root-anchored with the leading slash on purpose: a bare pattern here once
+# matched public/assets/ at any depth and 404ed the bean model in production.
+/public/davien-hero.mp4

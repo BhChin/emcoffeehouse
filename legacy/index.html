@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Em Coffee House — Vietnamese Coffee, Poured Slow</title>
+    <meta
+      name="description"
+      content="Em Coffee House — Vietnamese coffee culture in San Diego. Cà phê sữa đá, egg coffee, bạc xỉu. Poured slow."
+    />
+    <meta name="theme-color" content="#14252F" />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <!-- Loading screen: pulsing orange script over navy while fonts + scene build. -->
+    <div class="loader" id="loader">
+      <div class="loader__mark">em</div>
+    </div>
+
+    <canvas id="scene" aria-hidden="true"></canvas>
+
+    <!-- Static 2D hero, shown only when WebGL is unavailable. -->
+    <div class="fallback" id="fallback" hidden>
+      <div class="fallback__inner">
+        <h1 class="fallback__wordmark">EM</h1>
+        <p class="fallback__script">cà phê</p>
+        <p class="fallback__tag">Vietnamese coffee, poured slow.</p>
+        <ul class="fallback__list" id="fallback-locations"></ul>
+      </div>
+    </div>
+
+    <div class="overlay" id="overlay">
+      <header class="nav">
+        <a class="nav__logo" href="#" data-stop="0" aria-label="Em Coffee House, back to top">em</a>
+        <nav class="nav__pills" aria-label="Sections">
+          <button class="pill" data-stop="1">Menu</button>
+          <button class="pill" data-stop="2">About</button>
+          <button class="pill" data-stop="3">Locations</button>
+        </nav>
+      </header>
+
+      <p class="tagline">Vietnamese coffee,<br />poured slow.</p>
+
+      <div class="cue" id="cue" aria-hidden="true">
+        <span class="cue__label">Scroll</span>
+        <span class="cue__arrow"></span>
+      </div>
+    </div>
+
+    <!-- Subtle vignette, done in CSS so we can skip a postprocessing pass. -->
+    <div class="vignette" aria-hidden="true"></div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
